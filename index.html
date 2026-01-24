@@ -2,23 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DLS Calculator</title>
+    
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
+    
     <style>
-        /* 1. FORCE SCREEN SIZE (Fixes NullPointerException) */
+        /* FIX 2: The "Mobile Compatibility Layer" */
         html, body {
             height: 100%;
             width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: hidden; /* Stop scrolling completely */
             background-color: #333;
+            
+            /* CRITICAL: Tell iPad to ignore native gestures (like swipe/scroll) 
+               and pass taps directly to the app */
+            touch-action: none; 
+            -ms-touch-action: none;
         }
+
         #cheerpj-display {
             width: 100%;
             height: 100%;
             display: block;
+            
+            /* Ensure the app container specifically catches all touches */
+            touch-action: none; 
         }
     </style>
 </head>
@@ -29,11 +40,10 @@
     <script>
         cheerpjInit().then(function(){
             
-            // 3. INITIALIZE GRAPHICS (Fixes NullPointerException)
+            // Initialize Graphics
             cheerpjCreateDisplay(-1, -1, document.getElementById('cheerpj-display'));
 
-            // 4. RUN WITH THE WORKING PATH (Fixes "Unexpected Error")
-            // We know this path works because it got us to the NPE error before.
+            // RUN WITH THE WORKING PATH
             cheerpjRunJar("/app/DLSCalculator6/DLSCalculator.jar", "");
         });
     </script>
