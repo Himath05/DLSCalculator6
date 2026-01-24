@@ -2,23 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DLS Calculator</title>
+    
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
+    
     <style>
-        /* 1. FORCE SCREEN SIZE (Fixes NullPointerException) */
+        /* GLOBAL RESET */
         html, body {
             height: 100%;
             width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: hidden; /* No scrolling */
             background-color: #333;
+            
+            /* CRITICAL: Disable default touch actions */
+            touch-action: none;
+            -ms-touch-action: none;
+            -webkit-user-select: none; /* Disable text selection */
+            user-select: none;
         }
+
+        /* CONTAINER SETUP */
         #cheerpj-display {
             width: 100%;
             height: 100%;
             display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            
+            /* IOS TRICK: Force cursor to pointer to trigger click events */
+            cursor: pointer;
+            touch-action: none;
+        }
+        
+        /* CANVAS TARGETING */
+        /* Ensure the actual Java canvas inherits the touch settings */
+        #cheerpj-display canvas {
+            touch-action: none;
+            outline: none;
         }
     </style>
 </head>
@@ -27,15 +51,69 @@
     <div id="cheerpj-display"></div>
 
     <script>
+        // 1. Initialize CheerpJ
         cheerpjInit().then(function(){
             
-            // 3. INITIALIZE GRAPHICS (Fixes NullPointerException)
+            // 2. Create the graphics window
             cheerpjCreateDisplay(-1, -1, document.getElementById('cheerpj-display'));
 
-            // 4. RUN WITH THE WORKING PATH (Fixes "Unexpected Error")
-            // We know this path works because it got us to the NPE error before.
+            // 3. Run the JAR
             cheerpjRunJar("/app/DLSCalculator6/DLSCalculator.jar", "");
+            
+            // 4. ACTIVATE TOUCH BRIDGE (The Fix)
+            // Wait 1 second for the canvas to load, then attach the bridge
+            setTimeout(activateTouchBridge, 2000);
         });
+
+        // --- THE TOUCH-TO-MOUSE BRIDGE ---
+        // This function converts Finger Taps into Mouse Clicks for Java
+        function activateTouchBridge() {
+            var container = document.getElementById("cheerpj-display");
+            
+            function touchHandler(event) {
+                var touches = event.changedTouches,
+                    first = touches[0],
+                    type = "";
+
+                // Convert Touch type to Mouse type
+                switch(event.type) {
+                    case "touchstart": type = "mousedown"; break;
+                    case "touchmove":  type = "mousemove"; break;        
+                    case "touchend":   type = "mouseup";   break;
+                    default:           return;
+                }
+
+                // Create a fake Mouse Event
+                var simulatedEvent = new MouseEvent(type, {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window,
+                    detail: 1,
+                    screenX: first.screenX,
+                    screenY: first.screenY,
+                    clientX: first.clientX,
+                    clientY: first.clientY,
+                    button: 0,      // Left Button
+                    buttons: 1      // Left Button Pressed
+                });
+
+                // Dispatch it to the target (The Java Canvas)
+                first.target.dispatchEvent(simulatedEvent);
+                
+                // Stop the browser from scrolling/zooming
+                if(event.cancelable) {
+                    event.preventDefault();
+                }
+            }
+
+            // Listen to touch events
+            container.addEventListener("touchstart", touchHandler, {passive: false});
+            container.addEventListener("touchmove", touchHandler, {passive: false});
+            container.addEventListener("touchend", touchHandler, {passive: false});
+            container.addEventListener("touchcancel", touchHandler, {passive: false});
+            
+            console.log("Touch Bridge Activated");
+        }
     </script>
 </body>
 </html>
