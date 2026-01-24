@@ -3,126 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DLS Debugger</title>
+    <title>DLS Debugger v2</title>
     
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
     
     <style>
+        /* RESET EVERYTHING */
         html, body {
-            height: 100%; width: 100%; margin: 0; padding: 0;
-            overflow: hidden; background-color: #333;
-            touch-action: none; user-select: none; -webkit-user-select: none;
+            width: 100vw; height: 100vh;
+            margin: 0; padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            touch-action: none; /* Disable Browser Gestures */
         }
 
         #cheerpj-display {
-            width: 100%; height: 100%; display: block;
-            touch-action: none; cursor: pointer;
+            width: 100%; height: 100%;
+            display: block;
+            touch-action: none;
         }
 
-        /* THE DEBUG CONSOLE (Visual Log on Screen) */
+        /* DEBUG CONSOLE (Click-through enabled) */
         #debug-console {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 150px;
-            background: rgba(0, 0, 0, 0.8);
-            color: #0f0;
-            font-family: monospace;
-            font-size: 12px;
-            overflow-y: scroll;
-            pointer-events: none; /* Let touches pass through it */
-            z-index: 9999;
-            padding: 5px;
-            border-bottom: 2px solid #fff;
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100px;
+            background: rgba(0, 50, 0, 0.8);
+            color: #0f0; font-family: monospace; font-size: 14px;
+            pointer-events: none; /* Let touches pass through this box */
+            z-index: 10000;
         }
     </style>
 </head>
 <body>
 
-    <div id="debug-console">Waiting for logs...</div>
-
+    <div id="debug-console">Initializing Global Net...</div>
     <div id="cheerpj-display"></div>
 
     <script>
-        // Logger Function
+        // --- 1. SETUP LOGGER ---
         function log(msg) {
             var c = document.getElementById("debug-console");
-            c.innerHTML = "> " + msg + "<br>" + c.innerHTML;
+            c.innerText = "> " + msg + "\n" + c.innerText.substring(0, 200);
         }
 
+        // --- 2. START CHEERPJ ---
         cheerpjInit().then(function(){
-            log("CheerpJ Initialized.");
-            
             cheerpjCreateDisplay(-1, -1, document.getElementById('cheerpj-display'));
-            log("Display Created.");
-
             cheerpjRunJar("/app/DLSCalculator6/DLSCalculator.jar", "");
-            log("JAR Started. Looking for Canvas...");
-
-            // Start looking for the Java window
-            waitForCanvas();
+            log("App Started. Waiting for Canvas...");
+            
+            // Start the "Global Net" immediately
+            activateGlobalBridge();
         });
 
-        function waitForCanvas() {
-            // CheerpJ creates a generic <canvas> element
-            var canvas = document.querySelector("canvas");
+        // --- 3. THE GLOBAL NET BRIDGE ---
+        function activateGlobalBridge() {
+            // We listen to the WHOLE WINDOW, not just the element
+            window.addEventListener("touchstart", handleGlobalTouch, {passive: false, capture: true});
+            window.addEventListener("touchmove",  handleGlobalTouch, {passive: false, capture: true});
+            window.addEventListener("touchend",   handleGlobalTouch, {passive: false, capture: true});
             
-            if (canvas) {
-                log("SUCCESS: Java Canvas Found!");
-                canvas.style.touchAction = "none"; // Enforce no scrolling
-                attachTouchBridge(canvas);
-            } else {
-                log("...searching for canvas...");
-                setTimeout(waitForCanvas, 500);
-            }
+            log("Global Bridge ACTIVE on Window.");
         }
 
-        function attachTouchBridge(target) {
-            log("Bridge Attached to: " + target.tagName);
+        function handleGlobalTouch(e) {
+            // 1. Always stop scrolling/zooming
+            if (e.cancelable) e.preventDefault();
 
-            function dispatch(type, t) {
-                // Create the fake mouse event
-                var e = new MouseEvent(type, {
-                    view: window,
-                    bubbles: true,
-                    cancelable: true,
-                    screenX: t.screenX, screenY: t.screenY,
-                    clientX: t.clientX, clientY: t.clientY,
-                    button: 0, buttons: 1
-                });
-                
-                // Send it to the Canvas
-                target.dispatchEvent(e);
-                log("SIMULATED: " + type + " at " + Math.round(t.clientX) + "," + Math.round(t.clientY));
+            // 2. Find the Java Canvas (It might appear late, so we check every tap)
+            var canvas = document.querySelector("canvas");
+            if (!canvas) {
+                log("WARN: Tap detected, but Canvas not found yet.");
+                return;
             }
 
-            // 1. TOUCH START
-            target.addEventListener("touchstart", function(e) {
-                e.preventDefault();
-                log("TOUCH: Start detected");
-                var t = e.changedTouches[0];
-                
-                // Focus the window (Java sometimes sleeps without focus)
-                window.focus();
-                target.focus();
+            var type = "";
+            var touch = e.changedTouches[0];
 
-                dispatch("mousedown", t);
-            }, {passive: false});
+            // 3. Map Touch -> Mouse
+            if (e.type === "touchstart") type = "mousedown";
+            if (e.type === "touchmove")  type = "mousemove";
+            if (e.type === "touchend")   type = "mouseup";
 
-            // 2. TOUCH MOVE
-            target.addEventListener("touchmove", function(e) {
-                e.preventDefault();
-                var t = e.changedTouches[0];
-                dispatch("mousemove", t);
-            }, {passive: false});
+            log("INPUT: " + type);
 
-            // 3. TOUCH END
-            target.addEventListener("touchend", function(e) {
-                e.preventDefault();
-                log("TOUCH: End detected");
-                var t = e.changedTouches[0];
-                dispatch("mouseup", t);
-                dispatch("click", t);
-            }, {passive: false});
+            // 4. Create and Dispatch Event
+            var simEvent = new MouseEvent(type, {
+                bubbles: true, cancelable: true, view: window,
+                screenX: touch.screenX, screenY: touch.screenY,
+                clientX: touch.clientX, clientY: touch.clientY,
+                button: 0, buttons: 1
+            });
+
+            canvas.dispatchEvent(simEvent);
+
+            // 5. Special Case: Click on TouchEnd
+            if (type === "mouseup") {
+                var clickEvent = new MouseEvent("click", {
+                    bubbles: true, cancelable: true, view: window,
+                    screenX: touch.screenX, screenY: touch.screenY,
+                    clientX: touch.clientX, clientY: touch.clientY,
+                    button: 0, buttons: 1
+                });
+                canvas.dispatchEvent(clickEvent);
+                log("INPUT: click (simulated)");
+            }
         }
     </script>
 </body>
