@@ -8,41 +8,26 @@
     <script src="https://cjrtnc.leaningtech.com/3.0/cj3loader.js"></script>
     
     <style>
-        /* GLOBAL RESET */
+        /* APP LAYOUT */
         html, body {
             height: 100%;
             width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* No scrolling */
+            overflow: hidden;
             background-color: #333;
-            
-            /* CRITICAL: Disable default touch actions */
+            /* DISABLE SYSTEM GESTURES */
             touch-action: none;
-            -ms-touch-action: none;
-            -webkit-user-select: none; /* Disable text selection */
+            -webkit-user-select: none;
             user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* CONTAINER SETUP */
         #cheerpj-display {
             width: 100%;
             height: 100%;
             display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            
-            /* IOS TRICK: Force cursor to pointer to trigger click events */
-            cursor: pointer;
             touch-action: none;
-        }
-        
-        /* CANVAS TARGETING */
-        /* Ensure the actual Java canvas inherits the touch settings */
-        #cheerpj-display canvas {
-            touch-action: none;
-            outline: none;
         }
     </style>
 </head>
@@ -51,68 +36,71 @@
     <div id="cheerpj-display"></div>
 
     <script>
-        // 1. Initialize CheerpJ
         cheerpjInit().then(function(){
-            
-            // 2. Create the graphics window
+            // 1. Setup Screen
             cheerpjCreateDisplay(-1, -1, document.getElementById('cheerpj-display'));
 
-            // 3. Run the JAR
+            // 2. Run App (Using your working path)
             cheerpjRunJar("/app/DLSCalculator6/DLSCalculator.jar", "");
-            
-            // 4. ACTIVATE TOUCH BRIDGE (The Fix)
-            // Wait 1 second for the canvas to load, then attach the bridge
-            setTimeout(activateTouchBridge, 2000);
+
+            // 3. START THE BRIDGE (Robust Mode)
+            // This function keeps checking until the Java Canvas appears
+            waitForCanvas();
         });
 
-        // --- THE TOUCH-TO-MOUSE BRIDGE ---
-        // This function converts Finger Taps into Mouse Clicks for Java
-        function activateTouchBridge() {
-            var container = document.getElementById("cheerpj-display");
+        // --- ROBUST TOUCH BRIDGE ---
+        function waitForCanvas() {
+            // CheerpJ creates a <canvas> element. We need to find it.
+            var canvas = document.querySelector("canvas");
             
-            function touchHandler(event) {
-                var touches = event.changedTouches,
-                    first = touches[0],
-                    type = "";
+            if (canvas) {
+                console.log("Java Canvas Found! Attaching Touch Bridge...");
+                attachTouchBridge(canvas);
+            } else {
+                // If not found yet, check again in 0.5 seconds
+                setTimeout(waitForCanvas, 500);
+            }
+        }
 
-                // Convert Touch type to Mouse type
-                switch(event.type) {
-                    case "touchstart": type = "mousedown"; break;
-                    case "touchmove":  type = "mousemove"; break;        
-                    case "touchend":   type = "mouseup";   break;
-                    default:           return;
-                }
-
-                // Create a fake Mouse Event
-                var simulatedEvent = new MouseEvent(type, {
+        function attachTouchBridge(targetElement) {
+            
+            function dispatchMouseEvent(type, touch) {
+                var mouseEvent = new MouseEvent(type, {
+                    view: window,
                     bubbles: true,
                     cancelable: true,
-                    view: window,
-                    detail: 1,
-                    screenX: first.screenX,
-                    screenY: first.screenY,
-                    clientX: first.clientX,
-                    clientY: first.clientY,
-                    button: 0,      // Left Button
-                    buttons: 1      // Left Button Pressed
+                    screenX: touch.screenX,
+                    screenY: touch.screenY,
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    button: 0,
+                    buttons: 1
                 });
-
-                // Dispatch it to the target (The Java Canvas)
-                first.target.dispatchEvent(simulatedEvent);
-                
-                // Stop the browser from scrolling/zooming
-                if(event.cancelable) {
-                    event.preventDefault();
-                }
+                targetElement.dispatchEvent(mouseEvent);
             }
 
-            // Listen to touch events
-            container.addEventListener("touchstart", touchHandler, {passive: false});
-            container.addEventListener("touchmove", touchHandler, {passive: false});
-            container.addEventListener("touchend", touchHandler, {passive: false});
-            container.addEventListener("touchcancel", touchHandler, {passive: false});
-            
-            console.log("Touch Bridge Activated");
+            // 1. TOUCH START -> MOUSE DOWN
+            targetElement.addEventListener("touchstart", function(e) {
+                e.preventDefault(); // Stop scrolling
+                var touch = e.changedTouches[0];
+                dispatchMouseEvent("mousedown", touch);
+            }, {passive: false});
+
+            // 2. TOUCH MOVE -> MOUSE MOVE
+            targetElement.addEventListener("touchmove", function(e) {
+                e.preventDefault();
+                var touch = e.changedTouches[0];
+                dispatchMouseEvent("mousemove", touch);
+            }, {passive: false});
+
+            // 3. TOUCH END -> MOUSE UP + CLICK
+            targetElement.addEventListener("touchend", function(e) {
+                e.preventDefault();
+                var touch = e.changedTouches[0];
+                dispatchMouseEvent("mouseup", touch);
+                // CRITICAL: Some Java buttons only work on "click", not just "mouseup"
+                dispatchMouseEvent("click", touch); 
+            }, {passive: false});
         }
     </script>
 </body>
